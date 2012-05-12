@@ -3,6 +3,13 @@ ColdFusion memcached client
 
 ColdFusion wrapper for the <a href="http://code.google.com/p/spymemcached/">spymemcached</a> java client
 
+Installation
+------------
+
+Copy the 'spymemcached' folder into your application root or create a mapping to it.
+
+By default, the client loads the spymemcached jar (2.7.3) using <a href="http://javaloader.riaforge.org/">javaLoader</a>
+
 Usage
 -----
 
