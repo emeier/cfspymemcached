@@ -5,9 +5,9 @@
     <!--- constructor --->
     <cffunction name="init" access="public" returntype="any" output="false">
         <cfargument name="servers" type="string" required="true" />
-        <cfargument name="operationTimeout" type="numeric" required="false" default="1000" />
-        <cfargument name="protocol" type="string" required="false" default="BINARY" hint="TEXT or BINARY"/>
-        <cfargument name="locator" type="string" required="false" default="CONSISTENT" hint="ARRAY_MOD, CONSISTENT or VBUCKET" />
+        <cfargument name="operationTimeout" type="numeric" required="false" default="2500" />
+        <cfargument name="protocol" type="string" required="false" default="TEXT" hint="TEXT or BINARY"/>
+        <cfargument name="locator" type="string" required="false" default="ARRAY_MOD" hint="ARRAY_MOD, CONSISTENT or VBUCKET" />
 
         <cfset var useJavaLoader = true />
 
@@ -30,10 +30,10 @@
     </cffunction>
 
     <cffunction name="createClientJava" access="public" returntype="any" output="false">
-        <cfargument name="servers" type="string" required="true" hint="space delimited list of servers" />
-        <cfargument name="operationTimeout" type="numeric" required="false" default="400" />
-        <cfargument name="protocol" type="string" required="false" default="BINARY" hint="TEXT or BINARY"/>
-        <cfargument name="locator" type="string" required="false" default="CONSISTENT" hint="ARRAY_MOD, CONSISTENT or VBUCKET" />
+        <cfargument name="servers" type="string" required="true" />
+        <cfargument name="operationTimeout" type="numeric" required="false" default="2500" />
+        <cfargument name="protocol" type="string" required="false" default="TEXT" hint="TEXT or BINARY"/>
+        <cfargument name="locator" type="string" required="false" default="ARRAY_MOD" hint="ARRAY_MOD, CONSISTENT or VBUCKET" />
 
         <cfset var connectionFactory = "" />
         <cfset var addresses = "" />
@@ -47,16 +47,19 @@
             .setLocatorType(locatorType[arguments.locator])
             .setOpTimeout(arguments.operationTimeout)
             .build() />
+
+        <cflog type="information" file="#variables.LOG_FILE#" text="#connectionFactory.toString()#" />
+
         <cfset addresses = CreateObject("java","net.spy.memcached.AddrUtil").getAddresses(arguments.servers) />
 
         <cfreturn CreateObject("java","net.spy.memcached.MemcachedClient").init(connectionFactory,addresses) />
     </cffunction>
 
     <cffunction name="createClientJavaLoader" access="public" returntype="any" output="false">
-        <cfargument name="servers" type="string" required="true" hint="space delimited list of servers" />
-        <cfargument name="operationTimeout" type="numeric" required="false" default="400" />
-        <cfargument name="protocol" type="string" required="false" default="BINARY" hint="TEXT or BINARY"/>
-        <cfargument name="locator" type="string" required="false" default="CONSISTENT" hint="ARRAY_MOD, CONSISTENT or VBUCKET" />
+        <cfargument name="servers" type="string" required="true" />
+        <cfargument name="operationTimeout" type="numeric" required="false" default="2500" />
+        <cfargument name="protocol" type="string" required="false" default="TEXT" hint="TEXT or BINARY"/>
+        <cfargument name="locator" type="string" required="false" default="ARRAY_MOD" hint="ARRAY_MOD, CONSISTENT or VBUCKET" />
 
         <cfset var scopeKey = "spymemcached.0FE38374-B8C0-4A20-489B08B5C16426B2" />
         <cfset var libDirectory = GetDirectoryFromPath(GetCurrentTemplatePath()) & "lib/" />
@@ -86,12 +89,36 @@
             .setLocatorType(locatorType[arguments.locator])
             .setOpTimeout(arguments.operationTimeout)
             .build() />
+
+        <cflog type="information" file="#variables.LOG_FILE#" text="#connectionFactory.toString()#" />
+
         <cfset addresses = javaLoader.create("net.spy.memcached.AddrUtil").getAddresses(arguments.servers) />
 
         <cfreturn javaLoader.create("net.spy.memcached.MemcachedClient").init(connectionFactory,addresses) />
     </cffunction>
 
     <!--- public methods --->
+    <cffunction name="add" returntype="boolean" output="false"
+        hint="Add an object to the cache (using the default transcoder) if it does not exist already.">
+        <cfargument name="key" type="string" required="true" />
+        <cfargument name="value" type="any" required="true" />
+        <cfargument name="expiry" type="numeric" default="0" />
+
+        <cfset var local = {} />
+        <cfset var success = true />
+
+        <cftry>
+            <cfset local.futureTask = getMemcachedClient().add(arguments.key,arguments.expiry,serializeObject(arguments.value)) />
+            <cfset success = local.futureTask.get() />
+            <cfcatch>
+                <cfset success = false />
+                <cfset handleException("add",arguments.key,cfcatch) />
+            </cfcatch>
+        </cftry>
+
+        <cfreturn success />
+    </cffunction>
+
     <cffunction name="asyncGet" access="public" returntype="any" output="false"
         hint="Get the given key asynchronously and decode with the default transcoder.">
         <cfargument name="key" type="string" required="true" />
