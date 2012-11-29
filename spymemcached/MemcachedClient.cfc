@@ -24,8 +24,6 @@
             <cfset setMemcachedClient(createClientJava(argumentCollection=arguments)) />
         </cfif>
 
-        <cfset variables.MAX_KEY_LENGTH = getMemcachedClient().MAX_KEY_LENGTH />
-
         <cfreturn this />
     </cffunction>
 
@@ -61,7 +59,7 @@
         <cfargument name="protocol" type="string" required="false" default="TEXT" hint="TEXT or BINARY"/>
         <cfargument name="locator" type="string" required="false" default="ARRAY_MOD" hint="ARRAY_MOD, CONSISTENT or VBUCKET" />
 
-        <cfset var scopeKey = "spymemcached.0FE38374-B8C0-4A20-489B08B5C16426B2" />
+        <cfset var scopeKey = "spymemcached.f824e7a0-39dd-11e2-81c1-0800200c9a66" />
         <cfset var libDirectory = GetDirectoryFromPath(GetCurrentTemplatePath()) & "lib/" />
         <cfset var paths = ArrayNew(1) />
         <cfset var javaLoader = "" />
@@ -70,7 +68,7 @@
         <cfset var protocolType = "" />
         <cfset var locatorType = "" />
 
-        <cfset paths[1] = libDirectory & "spymemcached-2.7.3.jar" />
+        <cfset paths[1] = libDirectory & "spymemcached-2.8.4.jar" />
 
         <cfif NOT StructKeyExists(server,scopeKey)>
             <cflock name="spymemcached.MemcachedClient.init" throwontimeout="true" timeout="60">
@@ -348,13 +346,15 @@
     <cffunction name="serializeObject" access="private" returntype="any" output="false">
         <cfargument name="value" type="any" required="true" />
 
-        <cfset var byteArrayOutputStream = CreateObject("java","java.io.ByteArrayOutputStream").init() />
-        <cfset var objectOutputStream = CreateObject("java","java.io.ObjectOutputStream").init(byteArrayOutputStream) />
+        <cfset var byteArrayOutputStream = "" />
+        <cfset var objectOutputStream = "" />
         <cfset var serializedValue = "" />
 
         <cfif IsSimpleValue(arguments.value)>
-            <cfset serializedValue = arguments.value />
+            <cfreturn arguments.value />
         <cfelse>
+            <cfset byteArrayOutputStream = CreateObject("java","java.io.ByteArrayOutputStream").init() />
+            <cfset objectOutputStream = CreateObject("java","java.io.ObjectOutputStream").init(byteArrayOutputStream) />
             <cfset objectOutputStream.writeObject(arguments.value) />
             <cfset serializedValue = byteArrayOutputStream.toByteArray() />
             <cfset objectOutputStream.close() />
@@ -368,12 +368,14 @@
         <cfargument name="value" type="any" required="true" />
 
         <cfset var deserializedValue = "" />
-        <cfset var objectInputStream = CreateObject("java","java.io.ObjectInputStream") />
-        <cfset var byteArrayInputStream = CreateObject("java","java.io.ByteArrayInputStream") />
+        <cfset var objectInputStream = "" />
+        <cfset var byteArrayInputStream = "" />
 
         <cfif IsSimpleValue(arguments.value)>
-            <cfset deserializedValue = arguments.value />
+            <cfreturn arguments.value />
         <cfelse>
+            <cfset objectInputStream = CreateObject("java","java.io.ObjectInputStream") />
+            <cfset byteArrayInputStream = CreateObject("java","java.io.ByteArrayInputStream") />
             <cfset objectInputStream.init(byteArrayInputStream.init(arguments.value)) />
             <cfset deserializedValue = objectInputStream.readObject() />
             <cfset objectInputStream.close() />
@@ -409,8 +411,8 @@
     <cffunction name="validateKey" access="private" returntype="string" output="false">
         <cfargument name="key" type="string" required="true" />
 
-        <cfif Len(arguments.key) GT variables.MAX_KEY_LENGTH>
-            <cfset arguments.key = Hash(arguments.key,"MD5") />
+        <cfif Len(arguments.key) GT getMemcachedClient().MAX_KEY_LENGTH>
+            <cfset arguments.key = Hash(arguments.key,"SHA") />
         </cfif>
 
         <cfreturn arguments.key />
