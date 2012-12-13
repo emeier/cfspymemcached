@@ -10,7 +10,9 @@
 
     <!--- this will run once after initialization and before setUp() --->
     <cffunction name="beforeTests" returntype="void" access="public" hint="put things here that you want to run before all tests" output="false">
-        <cfset variables.memcachedClient = createObject("component", "spymemcached.MemcachedClient").init("localhost:11211") />
+        <cfset variables.memcachedClient = createObject("component", "spymemcached.MemcachedClient").init(servers="localhost:11211"
+            ,protocol="TEXT"
+            ,transcoder="BYTE_ARRAY") />
     </cffunction>
 
     <!--- this will run once after all tests have been run --->

@@ -6,17 +6,19 @@
     <cffunction name="init" access="public" returntype="any" output="false">
         <cfargument name="servers" type="string" required="true" />
         <cfargument name="operationTimeout" type="numeric" required="false" default="2500" />
-        <cfargument name="protocol" type="string" required="false" default="TEXT" hint="TEXT or BINARY"/>
+        <cfargument name="protocol" type="string" required="false" default="BINARY" hint="TEXT or BINARY"/>
         <cfargument name="locator" type="string" required="false" default="ARRAY_MOD" hint="ARRAY_MOD, CONSISTENT or VBUCKET" />
+        <cfargument name="transcoder" type="string" default="JSON" hint="JSON or BYTE_ARRAY" />
 
         <cfset var useJavaLoader = true />
 
         <cflog type="information" file="#variables.LOG_FILE#" text="Starting up MemcachedClient." />
 
-        <cfset arguments.servers = Replace(arguments.servers,","," ","all") />
+        <cfset arguments.servers = Replace(arguments.servers, ",", " ", "all") />
 
-        <cfset variables.timeoutUnit = CreateObject("java","java.util.concurrent.TimeUnit").MILLISECONDS />
+        <cfset variables.timeoutUnit = CreateObject("java", "java.util.concurrent.TimeUnit").MILLISECONDS />
         <cfset variables.operationTimeout = arguments.operationTimeout />
+        <cfset variables.transcoder = arguments.transcoder />
 
         <cfif useJavaLoader>
             <cfset setMemcachedClient(createClientJavaLoader(argumentCollection=arguments)) />
@@ -50,7 +52,7 @@
 
         <cfset addresses = CreateObject("java","net.spy.memcached.AddrUtil").getAddresses(arguments.servers) />
 
-        <cfreturn CreateObject("java","net.spy.memcached.MemcachedClient").init(connectionFactory,addresses) />
+        <cfreturn CreateObject("java","net.spy.memcached.MemcachedClient").init(connectionFactory, addresses) />
     </cffunction>
 
     <cffunction name="createClientJavaLoader" access="public" returntype="any" output="false">
@@ -73,7 +75,7 @@
         <cfif NOT StructKeyExists(server,scopeKey)>
             <cflock name="spymemcached.MemcachedClient.init" throwontimeout="true" timeout="60">
                 <cfif NOT StructKeyExists(server,scopeKey)>
-                    <cfset server[scopeKey] = CreateObject("component","spymemcached.util.javaloader.JavaLoader").init(paths) />
+                    <cfset server[scopeKey] = CreateObject("component", "spymemcached.util.javaloader.JavaLoader").init(paths) />
                 </cfif>
             </cflock>
         </cfif>
@@ -92,7 +94,7 @@
 
         <cfset addresses = javaLoader.create("net.spy.memcached.AddrUtil").getAddresses(arguments.servers) />
 
-        <cfreturn javaLoader.create("net.spy.memcached.MemcachedClient").init(connectionFactory,addresses) />
+        <cfreturn javaLoader.create("net.spy.memcached.MemcachedClient").init(connectionFactory, addresses) />
     </cffunction>
 
     <!--- public methods --->
@@ -106,11 +108,11 @@
         <cfset var success = true />
 
         <cftry>
-            <cfset local.futureTask = getMemcachedClient().add(arguments.key,arguments.expiry,serializeObject(arguments.value)) />
+            <cfset local.futureTask = getMemcachedClient().add(arguments.key, arguments.expiry, serializeObject(arguments.value)) />
             <cfset success = local.futureTask.get() />
             <cfcatch>
                 <cfset success = false />
-                <cfset handleException("add",arguments.key,cfcatch) />
+                <cfset logException("add", arguments.key, cfcatch) />
             </cfcatch>
         </cftry>
 
@@ -129,7 +131,7 @@
         <cfset local.futureTask = getMemcachedClient().asyncGet(arguments.key) />
 
         <cftry>
-            <cfset local.value = local.futureTask.get(variables.operationTimeout,variables.timeoutUnit) />
+            <cfset local.value = local.futureTask.get(variables.operationTimeout, variables.timeoutUnit) />
 
             <!--- catch nulls --->
             <cfif NOT StructKeyExists(local,"value")>
@@ -141,7 +143,7 @@
             <cfcatch>
                 <cfset local.futureTask.cancel(true) />
                 <cfset local.value = "" />
-                <cfset handleException("asyncGet",arguments.key,cfcatch) />
+                <cfset logException("asyncGet",arguments.key, cfcatch) />
             </cfcatch>
         </cftry>
 
@@ -158,9 +160,9 @@
         <cfset var value = 0 />
 
         <cftry>
-            <cfset value = getMemcachedClient().decr(arguments.key,arguments.by,arguments.def,arguments.expiry) />
+            <cfset value = getMemcachedClient().decr(arguments.key, arguments.by, arguments.def, arguments.expiry) />
             <cfcatch>
-                <cfset handleException("decr",arguments.key,cfcatch) />
+                <cfset logException("decr", arguments.key, cfcatch) />
             </cfcatch>
         </cftry>
 
@@ -176,7 +178,7 @@
         <cftry>
             <cfset futureTask = getMemcachedClient().delete(arguments.key) />
             <cfcatch>
-                <cfset handleException("delete",arguments.key,cfcatch) />
+                <cfset logException("delete", arguments.key, cfcatch) />
             </cfcatch>
         </cftry>
 
@@ -203,8 +205,7 @@
 
             <cfcatch>
                 <cfset local.value = "" />
-                <cfset handleException("get",arguments.key,cfcatch) />
-                <!--- cfrethrow / --->
+                <cfset logException("get", arguments.key, cfcatch) />
             </cfcatch>
         </cftry>
 
@@ -221,9 +222,9 @@
         <cfset var value = 0 />
 
         <cftry>
-            <cfset value = getMemcachedClient().incr(arguments.key,arguments.by,arguments.def,arguments.expiry) />
+            <cfset value = getMemcachedClient().incr(arguments.key, arguments.by, arguments.def, arguments.expiry) />
             <cfcatch>
-                <cfset handleException("incr",arguments.key,cfcatch) />
+                <cfset logException("incr", arguments.key, cfcatch) />
             </cfcatch>
         </cftry>
 
@@ -239,9 +240,9 @@
         <cfset var futureTask = "" />
 
         <cftry>
-            <cfset futureTask = getMemcachedClient().set(arguments.key,arguments.expiry,serializeObject(arguments.value)) />
+            <cfset futureTask = getMemcachedClient().set(arguments.key, arguments.expiry, serializeObject(arguments.value)) />
             <cfcatch>
-                <cfset handleException("set",arguments.key,cfcatch) />
+                <cfset logException("set", arguments.key, cfcatch) />
             </cfcatch>
         </cftry>
 
@@ -264,9 +265,9 @@
         <cfset var futureTask = "" />
 
         <cftry>
-            <cfset futureTask = getMemcachedClient().touch(arguments.key,arguments.expiry) />
+            <cfset futureTask = getMemcachedClient().touch(arguments.key, arguments.expiry) />
             <cfcatch>
-                <cfset handleException("touch",arguments.key,cfcatch) />
+                <cfset logException("touch", arguments.key, cfcatch) />
             </cfcatch>
         </cftry>
 
@@ -298,7 +299,7 @@
         <cftry>
             <cfset futureTask = getMemcachedClient().flush() />
             <cfcatch>
-                <cfset handleException(operation="flush",exception=cfcatch) />
+                <cfset logException(operation="flush", exception=cfcatch) />
             </cfcatch>
         </cftry>
 
@@ -343,7 +344,35 @@
     </cffunction>
 
     <!--- private methods --->
-    <cffunction name="serializeObject" access="private" returntype="any" output="false">
+    <cffunction name="serializeObject" access="private" output="false">
+        <cfargument name="value" type="any" required="true" />
+
+        <cfset var serializedValue = "" />
+
+        <cfif variables.transcoder EQ "JSON">
+            <cfset serializedValue = serializeJSON(arguments.value) />
+        <cfelseif variables.transcoder EQ "BYTE_ARRAY">
+            <cfset serializedValue = serializeByteArray(arguments.value) />
+        </cfif>
+
+        <cfreturn serializedValue />
+    </cffunction>
+
+    <cffunction name="deserializeObject" access="private" output="false">
+        <cfargument name="value" type="any" required="true" />
+
+        <cfset var deserializedValue = "" />
+
+        <cfif variables.transcoder EQ "JSON">
+            <cfset deserializedValue = deserializeJSON(arguments.value, false) />
+        <cfelseif variables.transcoder EQ "BYTE_ARRAY">
+            <cfset deserializedValue = deserializeByteArray(arguments.value) />
+        </cfif>
+
+        <cfreturn deserializedValue />
+    </cffunction>
+
+    <cffunction name="serializeByteArray" access="private" returntype="any" output="false">
         <cfargument name="value" type="any" required="true" />
 
         <cfset var byteArrayOutputStream = "" />
@@ -364,7 +393,7 @@
         <cfreturn serializedValue />
     </cffunction>
 
-    <cffunction name="deserializeObject" access="private" returntype="any" output="false">
+    <cffunction name="deserializeByteArray" access="private" returntype="any" output="false">
         <cfargument name="value" type="any" required="true" />
 
         <cfset var deserializedValue = "" />
@@ -419,7 +448,7 @@
     </cffunction>
 
     <!--- exception handler --->
-    <cffunction name="handleException" access="private" returntype="void" output="false">
+    <cffunction name="logException" access="private" returntype="void" output="false">
         <cfargument name="operation" type="string" required="true" />
         <cfargument name="key" type="string" required="false" default="" />
         <cfargument name="exception" type="any" required="true" />
